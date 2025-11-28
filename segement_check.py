@@ -6,8 +6,8 @@ import argparse
 
 def load_yolo_labels(txt_path, img_w, img_h):
     """
-    讀取單一 YOLO txt 的標註，轉成 (x1, y1, x2, y2, class_id) 的 list（pixel 座標）
-    格式: class cx cy w h（都是 0~1）
+    Read YOLO txt annotations and convert them to a list of (x1, y1, x2, y2, class_id) in pixel coordinates.
+    Format: class cx cy w h (all normalized between 0 and 1)
     """
     boxes = []
     if not txt_path.exists():
@@ -50,47 +50,47 @@ def frames_to_video(
     output_video = Path(output_video)
 
     if not images_dir.exists():
-        raise FileNotFoundError(f"找不到 images 資料夾: {images_dir}")
+        raise FileNotFoundError(f"Images directory not found: {images_dir}")
     if not labels_dir.exists():
-        print(f"警告: 找不到 labels 資料夾: {labels_dir}，將只輸出影像不畫框")
+        print(f"Warning: Labels directory not found: {labels_dir}, will output video without boxes")
 
-    # 收集所有圖片檔案
+    # Collect all image files   
     img_files = sorted(
         [p for p in images_dir.iterdir() if p.suffix.lower() in [".jpg", ".jpeg", ".png"]]
     )
 
     if not img_files:
-        raise RuntimeError(f"{images_dir} 裡面沒有 jpg/png 圖片。")
+        raise RuntimeError(f"No jpg/png images found in {images_dir}.")
 
-    # 先讀第一張決定影像大小
+    # Read the first image to determine video size
     sample = cv2.imread(str(img_files[0]))
     if sample is None:
-        raise RuntimeError(f"無法讀取影像: {img_files[0]}")
+        raise RuntimeError(f"Cannot read image: {img_files[0]}")
     h, w = sample.shape[:2]
 
-    # 建立 VideoWriter
+    # Create VideoWriter
     output_video.parent.mkdir(parents=True, exist_ok=True)
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     writer = cv2.VideoWriter(str(output_video), fourcc, fps, (w, h))
 
     total = len(img_files)
-    print(f"共 {total} 張 frame，要輸出成影片: {output_video}")
-    print(f"影片尺寸: {w}x{h}, FPS: {fps}")
+    print(f"Total {total} frames, outputting video to: {output_video}")
+    print(f"Video size: {w}x{h}, FPS: {fps}")
 
     for idx, img_path in enumerate(img_files, start=1):
         img = cv2.imread(str(img_path))
         if img is None:
-            print(f"警告: 無法讀取 {img_path}，略過。")
+            print(f"Warning: Cannot read {img_path}, skipping.")
             continue
 
-        # 對應的 txt 檔名（frame_000001.jpg → frame_000001.txt）
+        # Corresponding txt filename (frame_000001.jpg → frame_000001.txt)
         txt_path = labels_dir / (img_path.stem + ".txt")
 
         boxes = load_yolo_labels(txt_path, img_w=w, img_h=h)
 
-        # 畫框
+        # Draw boxes
         for (x1, y1, x2, y2, cls) in boxes:
-            # 畫框
+            # Draw box
             cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
             if draw_label:
                 label_text = f"{class_name} ({cls})"
@@ -108,42 +108,42 @@ def frames_to_video(
         writer.write(img)
 
         if idx % 50 == 0 or idx == total:
-            print(f"寫入 {idx}/{total} frames")
+            print(f"Written {idx}/{total} frames")
 
     writer.release()
-    print("影片輸出完成！")
+    print("Video output completed!")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="把 YOLO 標註的 frame + txt 再組成帶框影片，用來檢查標註是否正確。"
+        description="Combine YOLO annotated frames and txt files into a video with bounding boxes for annotation verification."
     )
     parser.add_argument(
         "--images-dir",
         default=r"./output/20251031120850_0005_D/images",
-        help="frame 影像所在資料夾，例如 ./LabelData_Yolo/xxx/images",
+        help="Directory containing frame images, e.g., ./LabelData_Yolo/xxx/images",
     )
     parser.add_argument(
         "--labels-dir",
         default=r"./output/20251031120850_0005_D/labels",
-        help="YOLO txt 標註所在資料夾，例如 ./LabelData_Yolo/xxx/labels",
+        help="Directory containing YOLO txt annotations, e.g., ./LabelData_Yolo/xxx/labels",
     )
     parser.add_argument(
         "--output-video",
         default=r"./output_video/20251031120850_0005_D/check_video.mp4",
-        help="輸出影片檔路徑，例如 ./check_xxx.mp4",
+        help="Output video file path, e.g., ./check_xxx.mp4",
     )
     parser.add_argument(
         "--fps",
         type=float,
         default=30.0,
-        help="輸出影片的 FPS（預設 30）",
+        help="Output video FPS (default 30)",
     )
     parser.add_argument(
         "--class-name",
         type=str,
         default="Dog",
-        help="顯示在畫面上的類別名稱（預設 Dog）",
+        help="Class name to display on the video (default Dog)",
     )
     args = parser.parse_args()
 
